@@ -48,7 +48,7 @@ Installation
    ```
 
 4. Open your browser and go to http://localhost:8501.
-   or you can visit hhtps://ze matrix.streamlit.app 
+   or you can visit hhtps://ze-matrix.streamlit.app 
 
 Usage
 ----------
