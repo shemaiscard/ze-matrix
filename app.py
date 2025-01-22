@@ -85,6 +85,23 @@ def input_matrix_table(rows, cols, key_prefix):
         matrix.append(row)
     return np.array(matrix)
 
+# New helper function to input a matrix in the sidebar
+def input_matrix_table1(rows, cols, key_prefix):
+    matrix = []
+    for i in range(rows):
+        row = []
+        for j in range(cols):
+            cell_value = st.sidebar.number_input(
+                f"Matrix [{i+1}][{j+1}]",
+                value=0,
+                step=1,
+                key=f"{key_prefix}_{i}_{j}",
+                format="%d"
+            )
+            row.append(cell_value)
+        matrix.append(row)
+    return np.array(matrix)
+
 # Educational Mode
 def educational_mode():
     st.sidebar.header("Educational Mode")
@@ -696,14 +713,20 @@ def linear_equation_solver():
     st.sidebar.header("Linear Equation Solver")
     st.sidebar.write("Solve the linear equation Ax = b")
     
+    # Input matrix size
     rows = st.sidebar.number_input("Matrix size:", min_value=1, max_value=4, value=2)
-    A = input_matrix_table(rows, rows, "sidebar_matrix")
     
+    # Input matrix A in the sidebar
+    st.sidebar.write("Enter matrix A:")
+    A = input_matrix_table1(rows, rows, "sidebar_matrix")
+    
+    # Input vector b in the sidebar
     b_values = []
     st.sidebar.write("Enter b values:")
     for i in range(rows):
         b_values.append(st.sidebar.number_input(f"b[{i+1}]:", value=0, key=f"sidebar_b_{i}"))
     
+    # Solve the linear equation
     if st.sidebar.button("Solve Linear Equation"):
         try:
             solution = matrix_solve_linear_equation(A, np.array(b_values))
