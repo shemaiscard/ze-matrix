@@ -1,0 +1,198 @@
+/* styles.css */
+:root {
+    --background-light: #ffffff;
+    --background-dark: #1a1a1a;
+    --text-light: #2d3436;
+    --text-dark: #ffffff;
+    --primary-color: #4a6ee0;
+    --primary-hover: #6384e8;
+    --input-background-light: #f0f2f5;
+    --input-background-dark: #2d3436;
+    --card-background-light: #f8f9fa;
+    --card-background-dark: #2d3436;
+}
+
+.stApp {
+    background: var(--background-light);
+    color: var(--text-light);
+}
+
+[data-testid="stAppViewContainer"] {
+    color: var(--text-light);
+}
+
+/* Dark mode styles */
+@media (prefers-color-scheme: dark) {
+    .stApp {
+        background: var(--background-dark);
+        color: var(--text-dark);
+    }
+    
+    [data-testid="stAppViewContainer"] {
+        color: var(--text-dark);
+    }
+}
+
+/* Number input styling */
+.stNumberInput > div > div > div > input {
+    width: auto;
+    font-size: auto ;
+    text-align: center ;
+    margin: 0 ;
+    background-color: var(--input-background-light) ;
+    color: var(--text-light) ;
+}
+
+.matrix-input {
+    width: 5% !important;
+    margin: 0 2px;
+    text-align: center;
+}
+
+.matrix-input input {
+    text-align: center;
+    padding: 5px !important;
+}
+
+.matrix-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 10px 0;
+}
+
+.matrix-bracket {
+    font-size: 24px;
+    font-weight: bold;
+    margin: 0 1px;
+}
+
+
+/* Dark mode for number inputs */
+@media (prefers-color-scheme: dark) {
+    .stNumberInput > div > div > div > input {
+        background-color: var(--input-background-dark) ;
+        color: var(--text-dark) ;
+    }
+}
+
+/* Button styling */
+.stButton>button {
+    background-color: var(--primary-color) ;
+    color: white ;
+    border-radius: 10px ;
+    padding: 0.5rem 2rem ;
+    transition: all 0.3s ease ;
+}
+
+.stButton>button:hover {
+    background-color: var(--primary-hover) ;
+    transform: translateY(-2px) ;
+}
+
+/* Text input styling */
+.stTextInput>div>div>input {
+    background-color: var(--input-background-light);
+    color: var(--text-light);
+    border: 1px solid #ccc;
+}
+
+/* Select box styling */
+.stSelectbox>div>div>input {
+    background-color: var(--input-background-light);
+    color: var(--text-light);
+    border: 1px solid #ccc;
+}
+
+/* Dark mode for inputs */
+@media (prefers-color-scheme: dark) {
+    .stTextInput>div>div>input,
+    .stSelectbox>div>div>input {
+        background-color: var(--input-background-dark);
+        color: var(--text-dark);
+        border: 1px solid #444;
+    }
+}
+
+/* Card styling */
+.custom-card {
+    background-color: var(--card-background-light);
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+    border: 1px solid #e0e0e0;
+}
+
+/* Dark mode for cards */
+@media (prefers-color-scheme: dark) {
+    .custom-card {
+        background-color: var(--card-background-dark);
+        border: 1px solid #444;
+    }
+}
+
+/* Typography */
+.stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
+    color: var(--text-light);
+}
+
+.stMarkdown p {
+    color: var(--text-light);
+}
+
+/* Dark mode typography */
+@media (prefers-color-scheme: dark) {
+    .stMarkdown h1, .stMarkdown h2, .stMarkdown h3,
+    .stMarkdown p {
+        color: var(--text-dark);
+    }
+}
+
+/* DataFrame styling */
+.stDataFrame {
+    background-color: var(--card-background-light);
+    color: var(--text-light);
+}
+
+/* Dark mode for DataFrame */
+@media (prefers-color-scheme: dark) {
+    .stDataFrame {
+        background-color: var(--card-background-dark);
+        color: var(--text-dark);
+    }
+}
+
+
+/* Dark mode for matrix brackets */
+@media (prefers-color-scheme: dark) {
+    .matrix-bracket {
+        color: var(--text-dark) ;
+    }
+}
+
+/* Option group styling */
+.optgroup-label {
+    font-weight: bold;
+    color: var(--primary-color);
+    margin-top: 10px;
+}
+
+.optgroup-option {
+    padding-left: 20px;
+    color: var(--text-light);
+}
+
+/* Dark mode for option groups */
+@media (prefers-color-scheme: dark) {
+    .optgroup-option {
+        color: var(--text-dark);
+    }
+}
+
+/* Responsive design */
+@media (max-width: 600px) {
+    .stButton>button {
+        width: 100%;
+    }
+}
