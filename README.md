@@ -4,6 +4,7 @@ Ze Matrix - Advanced Matrix Operations
 Overview
 -----------
 Ze Matrix is a user-friendly tool for learning and performing advanced matrix operations. Built with Streamlit, it offers interactive features for matrix operations, explanations, and quizzes to enhance understanding.
+![look](https://github.com/user-attachments/assets/a3730b49-dd6e-4434-b5d4-de4e81449abb)
 
 Features
 ------------
