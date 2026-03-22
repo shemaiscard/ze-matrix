@@ -393,7 +393,7 @@ def educational_mode():
                 try:
                     correct_answer = matrix_addition(A, B)
                     if np.array_equal(user_answer, correct_answer):
-                        st.success("Correct! 🎉")
+                        st.success("Correct!")
                     else:
                         st.error(f"Incorrect. The correct answer is:")
                         st.write(pd.DataFrame(correct_answer))
@@ -414,7 +414,7 @@ def educational_mode():
                 try:
                     correct_answer = matrix_subtraction(A, B)
                     if np.array_equal(user_answer, correct_answer):
-                        st.success("Correct! 🎉")
+                        st.success("Correct!")
                     else:
                         st.error(f"Incorrect. The correct answer is:")
                         st.write(pd.DataFrame(correct_answer))
@@ -435,7 +435,7 @@ def educational_mode():
                 try:
                     correct_answer = matrix_multiplication(A, B)
                     if np.array_equal(user_answer, correct_answer):
-                        st.success("Correct! 🎉")
+                        st.success("Correct!")
                     else:
                         st.error(f"Incorrect. The correct answer is:")
                         st.write(pd.DataFrame(correct_answer))
@@ -453,7 +453,7 @@ def educational_mode():
                 try:
                     correct_answer = matrix_transpose(A)
                     if np.array_equal(user_answer, correct_answer):
-                        st.success("Correct! 🎉")
+                        st.success("Correct!")
                     else:
                         st.error(f"Incorrect. The correct answer is:")
                         st.write(pd.DataFrame(correct_answer))
@@ -470,7 +470,7 @@ def educational_mode():
             if st.button("Submit"):
                 correct_answer = matrix_determinant(A)
                 if user_answer == correct_answer:
-                    st.success("Correct! 🎉")
+                    st.success("Correct!")
                 else:
                     st.error(f"Incorrect. The correct answer is: {correct_answer}")
 
@@ -485,7 +485,7 @@ def educational_mode():
                 try:
                     correct_answer = matrix_inverse(A)
                     if np.array_equal(user_answer, correct_answer):
-                        st.success("Correct! 🎉")
+                        st.success("Correct!")
                     else:
                         st.error(f"Incorrect. The correct answer is:")
                         st.write(pd.DataFrame(correct_answer))
@@ -503,7 +503,7 @@ def educational_mode():
                 try:
                     correct_answer = scalar_multiplication(A, 2)
                     if np.array_equal(user_answer, correct_answer):
-                        st.success("Correct! 🎉")
+                        st.success("Correct!")
                     else:
                         st.error(f"Incorrect. The correct answer is:")
                         st.write(pd.DataFrame(correct_answer))
@@ -521,7 +521,7 @@ def educational_mode():
                 try:
                     correct_answer = matrix_power(A, 2)
                     if np.array_equal(user_answer, correct_answer):
-                        st.success("Correct! 🎉")
+                        st.success("Correct!")
                     else:
                         st.error(f"Incorrect. The correct answer is:")
                         st.write(pd.DataFrame(correct_answer))
@@ -538,7 +538,7 @@ def educational_mode():
             if st.button("Submit"):
                 correct_answer = matrix_rank(A)
                 if user_answer == correct_answer:
-                    st.success("Correct! 🎉")
+                    st.success("Correct!")
                 else:
                     st.error(f"Incorrect. The correct answer is: {correct_answer}")
 
@@ -552,7 +552,7 @@ def educational_mode():
             if st.button("Submit"):
                 correct_answer = matrix_trace(A)
                 if user_answer == correct_answer:
-                    st.success("Correct! 🎉")
+                    st.success("Correct!")
                 else:
                     st.error(f"Incorrect. The correct answer is: {correct_answer}")
 
@@ -568,7 +568,7 @@ def educational_mode():
                     correct_answer = matrix_diagonal(A)
                     user_answer_list = [int(x.strip()) for x in user_answer.split(",")]
                     if np.array_equal(user_answer_list, correct_answer):
-                        st.success("Correct! 🎉")
+                        st.success("Correct!")
                     else:
                         st.error(f"Incorrect. The correct answer is: {correct_answer}")
                 except:
@@ -588,7 +588,7 @@ def educational_mode():
                     user_eigenvalues_list = [float(x.strip()) for x in user_eigenvalues.split(",")]
                     user_eigenvectors_list = [float(x.strip()) for x in user_eigenvectors.split(",")]
                     if np.allclose(user_eigenvalues_list, eigenvalues) and np.allclose(user_eigenvectors_list, eigenvectors.flatten()):
-                        st.success("Correct! 🎉")
+                        st.success("Correct!")
                     else:
                         st.error(f"Incorrect. The correct eigenvalues are: {eigenvalues}\nThe correct eigenvectors are:")
                         st.write(pd.DataFrame(eigenvectors))
@@ -610,7 +610,7 @@ def educational_mode():
                     correct_answer = matrix_solve_linear_equation(A, b)
                     user_answer_list = [float(x.strip()) for x in user_answer.split(",")]
                     if np.allclose(user_answer_list, correct_answer):
-                        st.success("Correct! 🎉")
+                        st.success("Correct!")
                     else:
                         st.error(f"Incorrect. The correct answer is: {correct_answer}")
                 except:
@@ -626,7 +626,7 @@ def educational_mode():
             if st.button("Submit"):
                 correct_answer = matrix_norm(A, ord='fro')
                 if np.isclose(user_answer, correct_answer):
-                    st.success("Correct! 🎉")
+                    st.success("Correct!")
                 else:
                     st.error(f"Incorrect. The correct answer is: {correct_answer}")
 
@@ -642,7 +642,7 @@ def educational_mode():
                     _, S, _ = matrix_svd(A)
                     user_answer_list = [float(x.strip()) for x in user_answer.split(",")]
                     if np.allclose(user_answer_list, S):
-                        st.success("Correct! 🎉")
+                        st.success("Correct!")
                     else:
                         st.error(f"Incorrect. The correct singular values are: {S}")
                 except:
@@ -659,7 +659,7 @@ def educational_mode():
                 try:
                     correct_answer = matrix_cholesky_decomposition(A)
                     if np.array_equal(user_answer, correct_answer):
-                        st.success("Correct! 🎉")
+                        st.success("Correct!")
                     else:
                         st.error(f"Incorrect. The correct answer is:")
                         st.write(pd.DataFrame(correct_answer))
@@ -678,7 +678,7 @@ def educational_mode():
                 try:
                     Q, R = matrix_qr_decomposition(A)
                     if np.array_equal(user_answer_Q, Q) and np.array_equal(user_answer_R, R):
-                        st.success("Correct! 🎉")
+                        st.success("Correct!")
                     else:
                         st.error(f"Incorrect. The correct Q is:")
                         st.write(pd.DataFrame(Q))
@@ -699,7 +699,7 @@ def educational_mode():
                 try:
                     P, L, U = scipy_lu(A)  # Use scipy.linalg.lu
                     if np.array_equal(user_answer_L, L) and np.array_equal(user_answer_U, U):
-                        st.success("Correct! 🎉")
+                        st.success("Correct!")
                     else:
                         st.error(f"Incorrect. The correct L is:")
                         st.write(pd.DataFrame(L))
