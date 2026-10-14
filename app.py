@@ -738,6 +738,7 @@ def linear_equation_solver():
 
 # Main function
 def main():
+    st.set_page_config(page_title="Ze Matrix")
     load_css()
     st.title("Ze Matrix - Advanced Matrix Operations")
     st.write("A comprehensive tool for learning and practicing matrix operations.")
