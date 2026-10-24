@@ -1,4 +1,4 @@
-# Ze Matrix — Advanced Linear Algebra Tool
+# Ze Matrix: Advanced Linear Algebra Tool
 
 **Live Demo:** [ze-matrix.streamlit.app](https://ze-matrix.streamlit.app)
 
@@ -9,20 +9,24 @@ An interactive linear algebra tool built with Streamlit. Supports advanced matri
 ## Features
 
 ### Matrix Operations
-Addition · Subtraction · Multiplication · Transpose · Determinant · Inverse · Scalar Multiply · Power · Rank · Trace · Diagonal · Eigenvalues & Eigenvectors · Norm
+Addition · Subtraction · Multiplication · Transpose · Determinant · Inverse · Scalar Multiply · Power · Rank · Row Reduction (RREF) · Trace · Diagonal · Eigenvalues & Eigenvectors · Norm
 
 ### Decompositions
 SVD · Cholesky · QR · LU
 
+### Step-by-Step Solutions
+Determinant, inverse, rank, row reduction and `Ax = b` are worked with exact fractions, one row operation at a time. LU shows each multiplier, QR each Gram-Schmidt step, and SVD how the singular values come from `A^T A`.
+
 ### Linear Equation Solver
-Solve `Ax = b` for any compatible matrix and vector.
+Solve `Ax = b` by row reduction, with a clear answer for systems that have no solution or infinitely many.
 
 ### Educational Mode
 - Concept guides with visual aids
-- Interactive quizzes with instant feedback
+- Interactive quizzes on 18 topics with a new random question each time and instant feedback
+- Score per topic, saved to a file you can download and load again later
 
 ### Interface
-- Supports up to 4×4 matrix input
+- Matrices up to 8×8, with integers, decimals or fractions such as `1/3`
 - Dark mode support
 - LaTeX rendering for mathematical expressions
 

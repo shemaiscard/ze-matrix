@@ -1,8 +1,17 @@
 # app.py
+import json
+import random
+
 import streamlit as st
 import numpy as np
 import pandas as pd
 from scipy.linalg import lu as scipy_lu
+
+from linalg_steps import (det_steps, fmt, inverse_steps, lu_steps, parse_entry, qr_steps,
+                          rank_steps, rref, solve_steps, svd_steps, to_float)
+from quizzes import QUIZ_TYPES, check, new_question
+
+SIZES = [1, 2, 3, 4, 5, 6, 7, 8]
 
 # Load custom CSS
 def load_css():
@@ -66,41 +75,54 @@ def matrix_qr_decomposition(matrix):
 def matrix_lu_decomposition(matrix):
     return scipy_lu(matrix)
 
-# Helper function to input a matrix using a table
-def input_matrix_table(rows, cols, key_prefix):
-    matrix = []
+# Matrix input: an editable grid that accepts integers, decimals and fractions
+def matrix_editor(rows, cols, key, label=None, where=st):
+    if label:
+        where.write(f"{label} =")
+    df = pd.DataFrame([["0"] * cols for _ in range(rows)],
+                      columns=[str(j + 1) for j in range(cols)], index=[str(i + 1) for i in range(rows)])
+    edited = where.data_editor(df, key=f"{key}_{rows}x{cols}", use_container_width=True)
+    values, bad = [], []
     for i in range(rows):
-        col1, col2, col3 = st.columns([0.7, 1, 1])  # Create 3 columns with the middle column being smaller
         row = []
         for j in range(cols):
-            with col1:  # Place the input box in the middle column
-                cell_value = st.number_input(
-                    f"Matrix [{i+1}][{j+1}]",
-                    value=0,
-                    step=1,
-                    key=f"{key_prefix}_{i}_{j}",
-                    format="%d"
-                )
-            row.append(cell_value)
-        matrix.append(row)
-    return np.array(matrix)
+            try:
+                row.append(parse_entry(edited.iat[i, j]))
+            except (ValueError, ZeroDivisionError):
+                bad.append(f"[{i + 1}][{j + 1}]")
+        values.append(row)
+    if bad:
+        where.error(f"Not a number in {label or 'the matrix'}: {', '.join(bad)}. Use forms like 3, -0.5 or 1/3.")
+        return None
+    return values
 
-# New helper function to input a matrix in the sidebar
-def input_matrix_table1(rows, cols, key_prefix):
-    matrix = []
-    for i in range(rows):
-        row = []
-        for j in range(cols):
-            cell_value = st.sidebar.number_input(
-                f"Matrix [{i+1}][{j+1}]",
-                value=0,
-                step=1,
-                key=f"{key_prefix}_{i}_{j}",
-                format="%d"
-            )
-            row.append(cell_value)
-        matrix.append(row)
-    return np.array(matrix)
+def parse_list(text):
+    return [parse_entry(x) for x in str(text).replace(";", ",").split(",") if x.strip()]
+
+def as_frame(matrix, sep=None):
+    cols = len(matrix[0]) if matrix else 0
+    names = [str(j + 1) if sep is None or j < sep else f"| {j - sep + 1}" for j in range(cols)]
+    return pd.DataFrame([[fmt(x) for x in row] for row in matrix], columns=names,
+                        index=[str(i + 1) for i in range(len(matrix))])
+
+def show_value(label, value, where=st):
+    if isinstance(value, (list, np.ndarray)) and len(value) and isinstance(value[0], (list, np.ndarray)):
+        where.write(f"{label} =")
+        where.dataframe(as_frame([list(r) for r in value]))
+    elif isinstance(value, (list, np.ndarray)):
+        where.write(f"{label} = [ " + ",  ".join(fmt(x) for x in value) + " ]")
+    else:
+        where.write(f"{label} = {fmt(value)}")
+
+def show_steps(steps, where=st):
+    with where.expander("Show the steps"):
+        for i, s in enumerate(steps, 1):
+            st.markdown(f"**{i}.** {s['text']}")
+            if s["matrix"] is not None:
+                st.dataframe(as_frame(s["matrix"], s["sep"]))
+
+def matmul(A, B):
+    return [[sum(A[i][k] * B[k][j] for k in range(len(B))) for j in range(len(B[0]))] for i in range(len(A))]
 
 # Educational Mode
 def educational_mode():
@@ -371,377 +393,110 @@ def educational_mode():
     # Interactive Quizzes
     with sub_tab2:
         st.subheader("Interactive Quizzes")
-        quiz_type = st.selectbox("Select a Quiz Type", [
-            "Matrix Addition", "Matrix Subtraction", "Matrix Multiplication", 
-            "Matrix Transpose", "Matrix Determinant", "Matrix Inverse",
-            "Scalar Multiplication", "Matrix Power", "Matrix Rank",
-            "Matrix Trace", "Matrix Diagonal", "Eigenvalues & Eigenvectors",
-            "Solve Linear Equation", "Matrix Norm", "SVD", "Cholesky", "QR", "LU"
-        ])
+        quiz_type = st.selectbox("Select a Quiz Type", QUIZ_TYPES)
+        if "quiz_rng" not in st.session_state:
+            st.session_state.quiz_rng = random.Random()
+            st.session_state.quiz_questions = {}
+            st.session_state.quiz_round = 0
+            st.session_state.progress = {}
+        questions = st.session_state.quiz_questions
+        new = st.button("New question", key="quiz_new")
+        if new or quiz_type not in questions:
+            questions[quiz_type] = new_question(quiz_type, st.session_state.quiz_rng)
+            st.session_state.quiz_round += 1  # fresh, empty answer boxes
+        q = questions[quiz_type]
 
-        if quiz_type == "Matrix Addition":
-            st.write("**Quiz: Matrix Addition**")
-            st.write("Add the following matrices:")
-            A = np.array([[1, 2], [3, 4]])
-            B = np.array([[5, 6], [7, 8]])
-            st.write("A =")
-            st.write(pd.DataFrame(A))
-            st.write("B =")
-            st.write(pd.DataFrame(B))
-            user_answer = input_matrix_table(2, 2, "quiz_add")
-            if st.button("Submit"):
+        st.write(f"**Quiz: {quiz_type}**")
+        st.write(q["prompt"])
+        for label, value in q["given"]:
+            show_value(label, value)
+
+        answers, bad = {}, []
+        for label, kind, shape in q["fields"]:
+            key = f"quiz_{quiz_type}_{label}_{st.session_state.quiz_round}"
+            if kind == "matrix":
+                value = matrix_editor(*shape, key, label=label)
+                if value is None:
+                    bad.append(label)
+            else:
+                text = st.text_input(f"{label}" + (" (comma-separated)" if kind == "vector" else ""), key=key)
                 try:
-                    correct_answer = matrix_addition(A, B)
-                    if np.array_equal(user_answer, correct_answer):
-                        st.success("Correct!")
-                    else:
-                        st.error(f"Incorrect. The correct answer is:")
-                        st.write(pd.DataFrame(correct_answer))
-                except:
-                    st.error("Invalid input. Please enter a valid 2x2 matrix.")
+                    value = parse_list(text) if kind == "vector" else parse_entry(text)
+                    if kind == "vector" and len(value) != shape:
+                        bad.append(label)
+                except (ValueError, ZeroDivisionError):
+                    bad.append(label)
+            answers[label] = value
 
-        elif quiz_type == "Matrix Subtraction":
-            st.write("**Quiz: Matrix Subtraction**")
-            st.write("Subtract the following matrices:")
-            A = np.array([[1, 2], [3, 4]])
-            B = np.array([[5, 6], [7, 8]])
-            st.write("A =")
-            st.write(pd.DataFrame(A))
-            st.write("B =")
-            st.write(pd.DataFrame(B))
-            user_answer = input_matrix_table(2, 2, "quiz_sub")
-            if st.button("Submit"):
-                try:
-                    correct_answer = matrix_subtraction(A, B)
-                    if np.array_equal(user_answer, correct_answer):
-                        st.success("Correct!")
-                    else:
-                        st.error(f"Incorrect. The correct answer is:")
-                        st.write(pd.DataFrame(correct_answer))
-                except:
-                    st.error("Invalid input. Please enter a valid 2x2 matrix.")
-
-        elif quiz_type == "Matrix Multiplication":
-            st.write("**Quiz: Matrix Multiplication**")
-            st.write("Multiply the following matrices:")
-            A = np.array([[1, 2], [3, 4]])
-            B = np.array([[5, 6], [7, 8]])
-            st.write("A =")
-            st.write(pd.DataFrame(A))
-            st.write("B =")
-            st.write(pd.DataFrame(B))
-            user_answer = input_matrix_table(2, 2, "quiz_mul")
-            if st.button("Submit"):
-                try:
-                    correct_answer = matrix_multiplication(A, B)
-                    if np.array_equal(user_answer, correct_answer):
-                        st.success("Correct!")
-                    else:
-                        st.error(f"Incorrect. The correct answer is:")
-                        st.write(pd.DataFrame(correct_answer))
-                except:
-                    st.error("Invalid input. Please enter a valid 2x2 matrix.")
-
-        elif quiz_type == "Matrix Transpose":
-            st.write("**Quiz: Matrix Transpose**")
-            st.write("Find the transpose of the following matrix:")
-            A = np.array([[1, 2, 3], [4, 5, 6]])
-            st.write("A =")
-            st.write(pd.DataFrame(A))
-            user_answer = input_matrix_table(3, 2, "quiz_trans")
-            if st.button("Submit"):
-                try:
-                    correct_answer = matrix_transpose(A)
-                    if np.array_equal(user_answer, correct_answer):
-                        st.success("Correct!")
-                    else:
-                        st.error(f"Incorrect. The correct answer is:")
-                        st.write(pd.DataFrame(correct_answer))
-                except:
-                    st.error("Invalid input. Please enter a valid 3x2 matrix.")
-
-        elif quiz_type == "Matrix Determinant":
-            st.write("**Quiz: Matrix Determinant**")
-            st.write("Find the determinant of the following matrix:")
-            A = np.array([[1, 2], [3, 4]])
-            st.write("A =")
-            st.write(pd.DataFrame(A))
-            user_answer = st.number_input("Enter your answer:", value=0, step=1, format="%d")
-            if st.button("Submit"):
-                correct_answer = matrix_determinant(A)
-                if user_answer == correct_answer:
-                    st.success("Correct!")
+        if st.button("Submit", key="quiz_submit"):
+            if bad:
+                st.error("Please complete: " + ", ".join(bad))
+            else:
+                correct, solution = check(q, answers)
+                score = st.session_state.progress.setdefault(quiz_type, {"attempts": 0, "correct": 0})
+                score["attempts"] += 1
+                score["correct"] += int(correct)
+                if correct:
+                    st.success("Correct! Press New question for another one.")
                 else:
-                    st.error(f"Incorrect. The correct answer is: {correct_answer}")
+                    st.error("Incorrect. The correct answer is:")
+                    for label, value in solution:
+                        show_value(label, value)
 
-        elif quiz_type == "Matrix Inverse":
-            st.write("**Quiz: Matrix Inverse**")
-            st.write("Find the inverse of the following matrix:")
-            A = np.array([[1, 2], [3, 4]])
-            st.write("A =")
-            st.write(pd.DataFrame(A))
-            user_answer = input_matrix_table(2, 2, "quiz_inv")
-            if st.button("Submit"):
+        progress = st.session_state.progress
+        if quiz_type in progress:
+            s = progress[quiz_type]
+            st.caption(f"Your score in this topic: {s['correct']} of {s['attempts']}")
+        with st.expander("Your progress"):
+            if progress:
+                st.dataframe(pd.DataFrame([{"Topic": k, "Correct": v["correct"], "Attempts": v["attempts"]}
+                                           for k, v in progress.items()]), hide_index=True)
+            else:
+                st.write("No answers yet.")
+            st.download_button("Download progress", json.dumps(progress, indent=1),
+                               file_name="ze_matrix_progress.json", mime="application/json")
+            uploaded = st.file_uploader("Continue from a saved progress file", type="json")
+            if uploaded is not None and st.session_state.get("progress_file") != uploaded.file_id:
                 try:
-                    correct_answer = matrix_inverse(A)
-                    if np.array_equal(user_answer, correct_answer):
-                        st.success("Correct!")
-                    else:
-                        st.error(f"Incorrect. The correct answer is:")
-                        st.write(pd.DataFrame(correct_answer))
-                except:
-                    st.error("Invalid input. Please enter a valid 2x2 matrix.")
-
-        elif quiz_type == "Scalar Multiplication":
-            st.write("**Quiz: Scalar Multiplication**")
-            st.write("Multiply the following matrix by the scalar 2:")
-            A = np.array([[1, 2], [3, 4]])
-            st.write("A =")
-            st.write(pd.DataFrame(A))
-            user_answer = input_matrix_table(2, 2, "quiz_scalar")
-            if st.button("Submit"):
-                try:
-                    correct_answer = scalar_multiplication(A, 2)
-                    if np.array_equal(user_answer, correct_answer):
-                        st.success("Correct!")
-                    else:
-                        st.error(f"Incorrect. The correct answer is:")
-                        st.write(pd.DataFrame(correct_answer))
-                except:
-                    st.error("Invalid input. Please enter a valid 2x2 matrix.")
-
-        elif quiz_type == "Matrix Power":
-            st.write("**Quiz: Matrix Power**")
-            st.write("Raise the following matrix to the power of 2:")
-            A = np.array([[1, 2], [3, 4]])
-            st.write("A =")
-            st.write(pd.DataFrame(A))
-            user_answer = input_matrix_table(2, 2, "quiz_power")
-            if st.button("Submit"):
-                try:
-                    correct_answer = matrix_power(A, 2)
-                    if np.array_equal(user_answer, correct_answer):
-                        st.success("Correct!")
-                    else:
-                        st.error(f"Incorrect. The correct answer is:")
-                        st.write(pd.DataFrame(correct_answer))
-                except:
-                    st.error("Invalid input. Please enter a valid 2x2 matrix.")
-
-        elif quiz_type == "Matrix Rank":
-            st.write("**Quiz: Matrix Rank**")
-            st.write("Find the rank of the following matrix:")
-            A = np.array([[1, 2], [3, 4]])
-            st.write("A =")
-            st.write(pd.DataFrame(A))
-            user_answer = st.number_input("Enter your answer:", value=0, step=1, format="%d")
-            if st.button("Submit"):
-                correct_answer = matrix_rank(A)
-                if user_answer == correct_answer:
-                    st.success("Correct!")
-                else:
-                    st.error(f"Incorrect. The correct answer is: {correct_answer}")
-
-        elif quiz_type == "Matrix Trace":
-            st.write("**Quiz: Matrix Trace**")
-            st.write("Find the trace of the following matrix:")
-            A = np.array([[1, 2], [3, 4]])
-            st.write("A =")
-            st.write(pd.DataFrame(A))
-            user_answer = st.number_input("Enter your answer:", value=0, step=1, format="%d")
-            if st.button("Submit"):
-                correct_answer = matrix_trace(A)
-                if user_answer == correct_answer:
-                    st.success("Correct!")
-                else:
-                    st.error(f"Incorrect. The correct answer is: {correct_answer}")
-
-        elif quiz_type == "Matrix Diagonal":
-            st.write("**Quiz: Matrix Diagonal**")
-            st.write("Find the diagonal of the following matrix:")
-            A = np.array([[1, 2], [3, 4]])
-            st.write("A =")
-            st.write(pd.DataFrame(A))
-            user_answer = st.text_input("Enter your answer (comma-separated):", value="0,0")
-            if st.button("Submit"):
-                try:
-                    correct_answer = matrix_diagonal(A)
-                    user_answer_list = [int(x.strip()) for x in user_answer.split(",")]
-                    if np.array_equal(user_answer_list, correct_answer):
-                        st.success("Correct!")
-                    else:
-                        st.error(f"Incorrect. The correct answer is: {correct_answer}")
-                except:
-                    st.error("Invalid input. Please enter a valid comma-separated list of numbers.")
-
-        elif quiz_type == "Eigenvalues & Eigenvectors":
-            st.write("**Quiz: Eigenvalues & Eigenvectors**")
-            st.write("Find the eigenvalues and eigenvectors of the following matrix:")
-            A = np.array([[1, 2], [3, 4]])
-            st.write("A =")
-            st.write(pd.DataFrame(A))
-            user_eigenvalues = st.text_input("Enter eigenvalues (comma-separated):", value="0,0")
-            user_eigenvectors = st.text_input("Enter eigenvectors (comma-separated, row-wise):", value="0,0,0,0")
-            if st.button("Submit"):
-                try:
-                    eigenvalues, eigenvectors = matrix_eigenvalues_and_eigenvectors(A)
-                    user_eigenvalues_list = [float(x.strip()) for x in user_eigenvalues.split(",")]
-                    user_eigenvectors_list = [float(x.strip()) for x in user_eigenvectors.split(",")]
-                    if np.allclose(user_eigenvalues_list, eigenvalues) and np.allclose(user_eigenvectors_list, eigenvectors.flatten()):
-                        st.success("Correct!")
-                    else:
-                        st.error(f"Incorrect. The correct eigenvalues are: {eigenvalues}\nThe correct eigenvectors are:")
-                        st.write(pd.DataFrame(eigenvectors))
-                except:
-                    st.error("Invalid input. Please enter valid comma-separated numbers.")
-
-        elif quiz_type == "Solve Linear Equation":
-            st.write("**Quiz: Solve Linear Equation**")
-            st.write("Solve the following linear equation Ax = b:")
-            A = np.array([[1, 2], [3, 4]])
-            b = [5, 6]
-            st.write("A =")
-            st.write(pd.DataFrame(A))
-            st.write("b =")
-            st.write(b)
-            user_answer = st.text_input("Enter your answer (comma-separated):", value="0,0")
-            if st.button("Submit"):
-                try:
-                    correct_answer = matrix_solve_linear_equation(A, b)
-                    user_answer_list = [float(x.strip()) for x in user_answer.split(",")]
-                    if np.allclose(user_answer_list, correct_answer):
-                        st.success("Correct!")
-                    else:
-                        st.error(f"Incorrect. The correct answer is: {correct_answer}")
-                except:
-                    st.error("Invalid input. Please enter a valid comma-separated list of numbers.")
-
-        elif quiz_type == "Matrix Norm":
-            st.write("**Quiz: Matrix Norm**")
-            st.write("Find the Frobenius norm of the following matrix:")
-            A = np.array([[1, 2], [3, 4]])
-            st.write("A =")
-            st.write(pd.DataFrame(A))
-            user_answer = st.number_input("Enter your answer:", value=0.0, step=0.1, format="%f")
-            if st.button("Submit"):
-                correct_answer = matrix_norm(A, ord='fro')
-                if np.isclose(user_answer, correct_answer):
-                    st.success("Correct!")
-                else:
-                    st.error(f"Incorrect. The correct answer is: {correct_answer}")
-
-        elif quiz_type == "SVD":
-            st.write("**Quiz: Singular Value Decomposition (SVD)**")
-            st.write("Find the singular values of the following matrix:")
-            A = np.array([[1, 2], [3, 4]])
-            st.write("A =")
-            st.write(pd.DataFrame(A))
-            user_answer = st.text_input("Enter singular values (comma-separated):", value="0,0")
-            if st.button("Submit"):
-                try:
-                    _, S, _ = matrix_svd(A)
-                    user_answer_list = [float(x.strip()) for x in user_answer.split(",")]
-                    if np.allclose(user_answer_list, S):
-                        st.success("Correct!")
-                    else:
-                        st.error(f"Incorrect. The correct singular values are: {S}")
-                except:
-                    st.error("Invalid input. Please enter valid comma-separated numbers.")
-
-        elif quiz_type == "Cholesky":
-            st.write("**Quiz: Cholesky Decomposition**")
-            st.write("Find the Cholesky decomposition of the following matrix:")
-            A = np.array([[1, 2], [2, 5]])
-            st.write("A =")
-            st.write(pd.DataFrame(A))
-            user_answer = input_matrix_table(2, 2, "quiz_cholesky")
-            if st.button("Submit"):
-                try:
-                    correct_answer = matrix_cholesky_decomposition(A)
-                    if np.array_equal(user_answer, correct_answer):
-                        st.success("Correct!")
-                    else:
-                        st.error(f"Incorrect. The correct answer is:")
-                        st.write(pd.DataFrame(correct_answer))
-                except:
-                    st.error("Invalid input. Please enter a valid 2x2 matrix.")
-
-        elif quiz_type == "QR":
-            st.write("**Quiz: QR Decomposition**")
-            st.write("Find the QR decomposition of the following matrix:")
-            A = np.array([[1, 2], [3, 4]])
-            st.write("A =")
-            st.write(pd.DataFrame(A))
-            user_answer_Q = input_matrix_table(2, 2, "quiz_qr_Q")
-            user_answer_R = input_matrix_table(2, 2, "quiz_qr_R")
-            if st.button("Submit"):
-                try:
-                    Q, R = matrix_qr_decomposition(A)
-                    if np.array_equal(user_answer_Q, Q) and np.array_equal(user_answer_R, R):
-                        st.success("Correct!")
-                    else:
-                        st.error(f"Incorrect. The correct Q is:")
-                        st.write(pd.DataFrame(Q))
-                        st.error("The correct R is:")
-                        st.write(pd.DataFrame(R))
-                except:
-                    st.error("Invalid input. Please enter valid 2x2 matrices.")
-
-        elif quiz_type == "LU":
-            st.write("**Quiz: LU Decomposition**")
-            st.write("Find the LU decomposition of the following matrix:")
-            A = np.array([[1, 2], [3, 4]])
-            st.write("A =")
-            st.write(pd.DataFrame(A))
-            user_answer_L = input_matrix_table(2, 2, "quiz_lu_L")
-            user_answer_U = input_matrix_table(2, 2, "quiz_lu_U")
-            if st.button("Submit"):
-                try:
-                    P, L, U = scipy_lu(A)  # Use scipy.linalg.lu
-                    if np.array_equal(user_answer_L, L) and np.array_equal(user_answer_U, U):
-                        st.success("Correct!")
-                    else:
-                        st.error(f"Incorrect. The correct L is:")
-                        st.write(pd.DataFrame(L))
-                        st.error("The correct U is:")
-                        st.write(pd.DataFrame(U))
-                except:
-                    st.error("Invalid input. Please enter valid 2x2 matrices.")
+                    loaded = json.load(uploaded)
+                    st.session_state.progress = {k: {"attempts": int(v["attempts"]), "correct": int(v["correct"])}
+                                                 for k, v in loaded.items() if k in QUIZ_TYPES}
+                    st.session_state.progress_file = uploaded.file_id
+                    st.rerun()
+                except (ValueError, KeyError, TypeError, AttributeError):
+                    st.error("This is not a Ze Matrix progress file.")
 
 # Linear Equation Solver
 def linear_equation_solver():
     st.sidebar.header("Linear Equation Solver")
     st.sidebar.write("Solve the linear equation Ax = b")
-    
+
     # Input matrix size
-    rows = st.sidebar.number_input("Matrix size:", min_value=1, max_value=4, value=2)
-    
-    # Input matrix A in the sidebar
-    st.sidebar.write("Enter matrix A:")
-    A = input_matrix_table1(rows, rows, "sidebar_matrix")
-    
-    # Input vector b in the sidebar
-    b_values = []
-    st.sidebar.write("Enter b values:")
-    for i in range(rows):
-        b_values.append(st.sidebar.number_input(f"b[{i+1}]:", value=0, key=f"sidebar_b_{i}"))
-    
-    # Solve the linear equation
-    if st.sidebar.button("Solve Linear Equation"):
-        try:
-            solution = matrix_solve_linear_equation(A, np.array(b_values))
+    rows = st.sidebar.selectbox("Matrix size:", SIZES[:6], index=1)
+
+    # Input matrix A and vector b in the sidebar
+    A = matrix_editor(rows, rows, "sidebar_matrix", label="A", where=st.sidebar)
+    b = matrix_editor(rows, 1, "sidebar_b", label="b", where=st.sidebar)
+
+    # Solve the linear equation by row reduction of [A | b]
+    if st.sidebar.button("Solve Linear Equation") and A is not None and b is not None:
+        kind, x, steps = solve_steps(A, [row[0] for row in b])
+        if kind == "unique":
             st.sidebar.success("Solution x:")
-            solution_df = pd.DataFrame(solution, columns=["Value"], index=[f"x{i+1}" for i in range(len(solution))])
-            st.sidebar.write(solution_df)
-        except np.linalg.LinAlgError:
-            st.sidebar.error("Matrix A is singular or not invertible.")
+            st.sidebar.dataframe(pd.DataFrame([fmt(v) for v in x], columns=["Value"],
+                                              index=[f"x{i + 1}" for i in range(len(x))]))
+        elif kind == "none":
+            st.sidebar.error("The system has no solution.")
+        else:
+            st.sidebar.warning("The system has infinitely many solutions.")
+        show_steps(steps, where=st.sidebar)
 
 # Main function
 def main():
     st.set_page_config(page_title="Ze Matrix")
     load_css()
     st.title("Ze Matrix - Advanced Matrix Operations")
-    st.write("A comprehensive tool for learning and practicing matrix operations.")
+    st.write("A tool for learning and practicing matrix operations.")
 
     # Sidebar for Educational Mode and Linear Equation Solver
     educational_mode()
@@ -750,170 +505,179 @@ def main():
     # Matrix Order Selection
     st.header("Matrix Order Selection")
     st.write("Select the number of rows and columns for the matrix:")
-
-    # Use radio buttons for rows and columns
-    rows = st.radio("Rows", [1, 2, 3, 4], key="rows")
-    cols = st.radio("Columns", [1, 2, 3, 4], key="cols")
+    rows = st.radio("Rows", SIZES, key="rows", horizontal=True)
+    cols = st.radio("Columns", SIZES, key="cols", horizontal=True)
 
     # Matrix Input
     st.header("Matrix Input")
-    matrix = input_matrix_table(rows, cols, "matrix")
+    st.caption("Type integers, decimals or fractions, such as 3, -0.5 or 1/3.")
+    A = matrix_editor(rows, cols, "matrix")
 
     # Add More Matrices
+    B = None
     add_another_matrix = st.checkbox("Add another matrix")
-    matrices = [matrix]
     if add_another_matrix:
-        rows2 = st.radio("Rows for Matrix 2", [1, 2, 3, 4], key="rows2")
-        cols2 = st.radio("Columns for Matrix 2", [1, 2, 3, 4], key="cols2")
-        matrix2 = input_matrix_table(rows2, cols2, "matrix2")
-        matrices.append(matrix2)
+        rows2 = st.radio("Rows for Matrix 2", SIZES, key="rows2", horizontal=True)
+        cols2 = st.radio("Columns for Matrix 2", SIZES, key="cols2", horizontal=True)
+        B = matrix_editor(rows2, cols2, "matrix2")
 
     # Scalar Input (Optional)
-    use_scalar = st.checkbox("Use a scalar value")
     scalar = None
-    if use_scalar:
-        scalar = st.number_input("Enter the scalar value", value=1, step=1, format="%d")
+    if st.checkbox("Use a scalar value"):
+        try:
+            scalar = parse_entry(st.text_input("Enter the scalar value", value="1"))
+        except (ValueError, ZeroDivisionError):
+            st.error("The scalar must be a number such as 2, -0.5 or 1/3.")
 
     # Operation Selection
     st.header("Operation Selection")
     operation = st.selectbox("Select Operation", [
         "Matrix Addition", "Matrix Subtraction", "Scalar Multiplication",
         "Matrix Multiplication", "Matrix Transpose", "Matrix Power",
-        "Matrix Determinant", "Matrix Inverse", "Matrix Rank",
+        "Matrix Determinant", "Matrix Inverse", "Matrix Rank", "Row Reduction (RREF)",
         "Matrix Trace", "Matrix Diagonal", "Eigenvalues & Eigenvectors", "Matrix Norm", "SVD", "Cholesky", "QR", "LU"
     ])
 
-    # Perform Operation
-    if st.button("Perform Operation"):
-        if operation == "Matrix Addition":
-            if len(matrices) == 2:
-                result = matrix_addition(matrices[0], matrices[1])
-            else:
-                st.error("Matrix Addition requires exactly two matrices.")
-                return
-        elif operation == "Matrix Subtraction":
-            if len(matrices) == 2:
-                result = matrix_subtraction(matrices[0], matrices[1])
-            else:
-                st.error("Matrix Subtraction requires exactly two matrices.")
-                return
-        elif operation == "Scalar Multiplication":
-            if scalar is not None:
-                result = scalar_multiplication(matrices[0], scalar)
-            else:
-                st.error("Scalar value is required for Scalar Multiplication.")
-                return
-        elif operation == "Matrix Multiplication":
-            if len(matrices) == 2:
-                if matrices[0].shape[1] == matrices[1].shape[0]:
-                    result = matrix_multiplication(matrices[0], matrices[1])
-                else:
-                    st.error("Number of columns in Matrix 1 must equal number of rows in Matrix 2 for multiplication.")
-                    return
-            else:
-                st.error("Matrix Multiplication requires exactly two matrices.")
-                return
-        elif operation == "Matrix Transpose":
-            result = matrix_transpose(matrices[0])
-        elif operation == "Matrix Power":
-            if matrices[0].shape[0] == matrices[0].shape[1]:
-                power = st.sidebar.number_input("Enter the power", min_value=1, value=2, step=1, format="%d")
-                result = matrix_power(matrices[0], power)
-            else:
-                st.error("Matrix must be square to calculate power.")
-                return
-        elif operation == "Matrix Determinant":
-            if matrices[0].shape[0] == matrices[0].shape[1]:
-                result = matrix_determinant(matrices[0])
-                st.write(f"The Determinant of the matrix is {result}")
-                return
-            else:
-                st.error("Matrix must be square to calculate determinant.")
-                return
-        elif operation == "Matrix Inverse":
-            if matrices[0].shape[0] == matrices[0].shape[1]:
-                try:
-                    result = matrix_inverse(matrices[0])
-                except np.linalg.LinAlgError:
-                    st.error("Matrix is singular and does not have an inverse.")
-                    return
-            else:
-                st.error("Matrix must be square to calculate inverse.")
-                return
-        elif operation == "Matrix Rank":
-            result = matrix_rank(matrices[0])
-            st.write(f"Rank of the matrix is {result}")
-            return
-        elif operation == "Matrix Trace":
-            if matrices[0].shape[0] == matrices[0].shape[1]:
-                result = matrix_trace(matrices[0])
-                st.write(f"Trace of the matrix is {result}")
-                return
-            else:
-                st.error("Matrix must be square to calculate trace.")
-                return
-        elif operation == "Matrix Diagonal":
-            if matrices[0].shape[0] == matrices[0].shape[1]:
-                result = matrix_diagonal(matrices[0])
-            else:
-                st.error("Matrix must be square to extract diagonal.")
-                return
-        elif operation == "Eigenvalues & Eigenvectors":
-            if matrices[0].shape[0] == matrices[0].shape[1]:
-                eigenvalues, eigenvectors = matrix_eigenvalues_and_eigenvectors(matrices[0])
-                st.write("Eigenvalues:")
-                st.write(eigenvalues)
-                st.write("Eigenvectors:")
-                st.write(pd.DataFrame(eigenvectors))
-                return
-            else:
-                st.error("Matrix must be square to calculate eigenvalues and eigenvectors.")
-                return
-        
-        
-        elif operation == "Matrix Norm":
-            ord = st.sidebar.selectbox("Select norm type", [None, "fro", "nuc", np.inf, -np.inf, 1, -1, 2, -2], key="norm_type")
-            result = matrix_norm(matrices[0], ord)
-            st.write(f"The Norm of the matrix is {result}")
-            return
-        elif operation == "SVD":
-            U, S, V = matrix_svd(matrices[0])
-            st.write("U (Left singular vectors):")
-            st.write(pd.DataFrame(U))
-            st.write("S (Singular values):")
-            st.write(S)
-            st.write("V (Right singular vectors):")
-            st.write(pd.DataFrame(V))
-            return
-        elif operation == "Cholesky":
-            if matrices[0].shape[0] == matrices[0].shape[1]:
-                try:
-                    result = matrix_cholesky_decomposition(matrices[0])
-                except np.linalg.LinAlgError:
-                    st.error("Matrix is not positive definite.")
-                    return
-            else:
-                st.error("Matrix must be square for Cholesky decomposition.")
-                return
-        elif operation == "QR":
-            Q, R = matrix_qr_decomposition(matrices[0])
-            st.write("Q (Orthogonal matrix):")
-            st.write(pd.DataFrame(Q))
-            st.write("R (Upper triangular matrix):")
-            st.write(pd.DataFrame(R))
-            return
-        elif operation == "LU":
-            P, L, U = scipy_lu(matrices[0])  # Use scipy.linalg.lu
-            st.write("P (Permutation matrix):")
-            st.write(pd.DataFrame(P))
-            st.write("L (Lower triangular matrix):")
-            st.write(pd.DataFrame(L))
-            st.write("U (Upper triangular matrix):")
-            st.write(pd.DataFrame(U))
-            return
+    # Options needed by some operations (chosen before pressing the button)
+    if operation == "Matrix Power":
+        power = st.number_input("Enter the power", min_value=0, max_value=50, value=2, step=1)
+    if operation == "Matrix Norm":
+        norm_labels = {"Frobenius": "fro", "Nuclear": "nuc", "Max row sum (inf)": np.inf,
+                       "Max column sum (1)": 1, "Spectral (2)": 2}
+        norm_choice = st.selectbox("Select norm type", list(norm_labels))
 
+    # Perform Operation
+    if not st.button("Perform Operation"):
+        return
+    if A is None or (add_another_matrix and B is None):
+        st.error("Please fix the matrix entries first.")
+        return
+    n_rows, n_cols = len(A), len(A[0])
+    square = n_rows == n_cols
+    Af = to_float(A)
+
+    if operation in ("Matrix Addition", "Matrix Subtraction", "Matrix Multiplication"):
+        if B is None:
+            st.error(f"{operation} requires exactly two matrices.")
+            return
+        if operation == "Matrix Multiplication":
+            if n_cols != len(B):
+                st.error("Number of columns in Matrix 1 must equal number of rows in Matrix 2 for multiplication.")
+                return
+            result = matmul(A, B)
+        else:
+            if (n_rows, n_cols) != (len(B), len(B[0])):
+                st.error("Both matrices must have the same size.")
+                return
+            sign = 1 if operation == "Matrix Addition" else -1
+            result = [[a + sign * b for a, b in zip(ra, rb)] for ra, rb in zip(A, B)]
+    elif operation == "Scalar Multiplication":
+        if scalar is None:
+            st.error("Scalar value is required for Scalar Multiplication.")
+            return
+        result = [[scalar * x for x in row] for row in A]
+    elif operation == "Matrix Transpose":
+        result = [list(col) for col in zip(*A)]
+    elif operation in ("Matrix Power", "Matrix Determinant", "Matrix Inverse", "Matrix Trace",
+                       "Matrix Diagonal", "Eigenvalues & Eigenvectors", "Cholesky") and not square:
+        st.error(f"Matrix must be square for {operation}.")
+        return
+    elif operation == "Matrix Power":
+        result = [[type(A[0][0])(int(i == j)) for j in range(n_cols)] for i in range(n_rows)]
+        for _ in range(int(power)):
+            result = matmul(result, A)
+    elif operation == "Matrix Determinant":
+        det, steps = det_steps(A)
+        st.write(f"The Determinant of the matrix is {fmt(det)}")
+        show_steps(steps)
+        return
+    elif operation == "Matrix Inverse":
+        result, steps = inverse_steps(A)
+        if result is None:
+            st.error("Matrix is singular and does not have an inverse.")
+            show_steps(steps)
+            return
         st.write("Result of the Operation:")
-        st.write(pd.DataFrame(result))
+        st.dataframe(as_frame(result))
+        show_steps(steps)
+        return
+    elif operation == "Matrix Rank":
+        rank, _, steps = rank_steps(A)
+        st.write(f"Rank of the matrix is {rank}")
+        show_steps(steps)
+        return
+    elif operation == "Row Reduction (RREF)":
+        steps = []
+        result, _ = rref(A, steps=steps)
+        st.write("Reduced row echelon form:")
+        st.dataframe(as_frame(result))
+        show_steps(steps)
+        return
+    elif operation == "Matrix Trace":
+        st.write(f"Trace of the matrix is {fmt(sum(A[i][i] for i in range(n_rows)))}")
+        return
+    elif operation == "Matrix Diagonal":
+        result = [[A[i][i] for i in range(n_rows)]]
+    elif operation == "Eigenvalues & Eigenvectors":
+        eigenvalues, eigenvectors = matrix_eigenvalues_and_eigenvectors(Af)
+        st.write("Eigenvalues:")
+        st.write("[ " + ",  ".join(fmt(x) for x in eigenvalues) + " ]")
+        st.write("Eigenvectors (columns, scaled to length 1):")
+        st.dataframe(as_frame(eigenvectors.tolist()))
+        return
+    elif operation == "Matrix Norm":
+        st.write(f"The {norm_choice} norm of the matrix is {fmt(matrix_norm(Af, norm_labels[norm_choice]))}")
+        return
+    elif operation == "SVD":
+        U, S, V = matrix_svd(Af)
+        st.write("U (Left singular vectors):")
+        st.dataframe(as_frame(U.tolist()))
+        st.write("S (Singular values): [ " + ",  ".join(fmt(x) for x in S) + " ]")
+        st.write("V^T (Right singular vectors, as rows):")
+        st.dataframe(as_frame(V.tolist()))
+        show_steps(svd_steps(Af)[2])
+        return
+    elif operation == "Cholesky":
+        if not np.allclose(Af, Af.T):
+            st.error("Cholesky needs a symmetric matrix.")
+            return
+        try:
+            result = matrix_cholesky_decomposition(Af).tolist()
+        except np.linalg.LinAlgError:
+            st.error("Matrix is not positive definite.")
+            return
+    elif operation == "QR":
+        Q, R = matrix_qr_decomposition(Af)
+        st.write("Q (Orthogonal matrix):")
+        st.dataframe(as_frame(Q.tolist()))
+        st.write("R (Upper triangular matrix):")
+        st.dataframe(as_frame(R.tolist()))
+        if n_rows >= n_cols:
+            Qg, Rg, steps = qr_steps(Af)
+            if Qg is not None:
+                steps.append({"text": "Gram-Schmidt result (it can differ from the table above by the sign of a column of Q and the matching row of R)",
+                              "matrix": None, "sep": None})
+            show_steps(steps)
+        return
+    elif operation == "LU":
+        if square:
+            P, L, U, steps = lu_steps(A)
+            st.write("P (Permutation matrix), with P A = L U:")
+        else:
+            P, L, U = scipy_lu(Af)
+            P, steps = P.T, None
+            st.write("P (Permutation matrix), with P A = L U:")
+        st.dataframe(as_frame(P.tolist() if hasattr(P, "tolist") else P))
+        st.write("L (Lower triangular matrix):")
+        st.dataframe(as_frame(L.tolist() if hasattr(L, "tolist") else L))
+        st.write("U (Upper triangular matrix):")
+        st.dataframe(as_frame(U.tolist() if hasattr(U, "tolist") else U))
+        if steps:
+            show_steps(steps)
+        return
+
+    st.write("Result of the Operation:")
+    st.dataframe(as_frame(result))
 
 if __name__ == "__main__":
     main()
