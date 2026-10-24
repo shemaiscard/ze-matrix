@@ -81,7 +81,7 @@ def matrix_editor(rows, cols, key, label=None, where=st):
         where.write(f"{label} =")
     df = pd.DataFrame([["0"] * cols for _ in range(rows)],
                       columns=[str(j + 1) for j in range(cols)], index=[str(i + 1) for i in range(rows)])
-    edited = where.data_editor(df, key=f"{key}_{rows}x{cols}", use_container_width=True)
+    edited = where.data_editor(df, key=f"{key}_{rows}x{cols}", width="stretch")
     values, bad = [], []
     for i in range(rows):
         row = []
