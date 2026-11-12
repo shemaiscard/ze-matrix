@@ -28,7 +28,6 @@ Solve `Ax = b` by row reduction, with a clear answer for systems that have no so
 ### Interface
 - Matrices up to 8×8, with integers, decimals or fractions such as `1/3`
 - Dark mode support
-- LaTeX rendering for mathematical expressions
 
 ## Setup
 
@@ -40,7 +39,13 @@ streamlit run app.py
 ```
 
 ## Tech Stack
-Python · Streamlit · NumPy · SciPy · Pandas
+
+| Part | Technology |
+| --- | --- |
+| Language | Python |
+| Interface | Streamlit |
+| Linear algebra | NumPy, SciPy |
+| Tables and score files | pandas |
 
 ## License
 MIT License
